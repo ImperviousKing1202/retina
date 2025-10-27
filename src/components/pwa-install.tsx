@@ -1,5 +1,5 @@
 /**
- * PWA Install Prompt Component for RETINA CNN System
+ * PWA Install Prompt Component for RETINA CNN System (SSR-safe)
  * Handles Progressive Web App installation prompts
  */
 
@@ -10,9 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Download, X, Smartphone, Monitor, 
-  CheckCircle, Info, ArrowRight
+import {
+  Download, X, Smartphone,
+  CheckCircle, Info
 } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -30,32 +30,64 @@ export function PWAInstallPrompt() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [mounted, setMounted] = useState(false); // ensure client-only checks before rendering
 
   useEffect(() => {
-    // Check if app is already installed
+    setMounted(true);
+
+    // Helper to check standalone/install states (client-only)
     const checkInstalled = () => {
-      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches ||
-                              (window.navigator as any).standalone ||
-                              document.referrer.includes('android-app://');
-      setIsStandalone(isStandaloneMode);
-      setIsInstalled(isStandaloneMode);
+      try {
+        const isStandaloneMode =
+          (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          (typeof navigator !== 'undefined' && (navigator as any).standalone) ||
+          (typeof document !== 'undefined' && typeof document.referrer === 'string' && document.referrer.includes('android-app://'));
+
+        setIsStandalone(!!isStandaloneMode);
+        setIsInstalled(!!isStandaloneMode);
+      } catch (err) {
+        // if anything fails, keep defaults (false)
+      }
     };
 
-    // Check if iOS device
     const checkIOS = () => {
-      const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      setIsIOS(isIOSDevice);
+      try {
+        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+        const platform = typeof navigator !== 'undefined' ? (navigator as any).platform : '';
+        const maxTouchPoints = typeof navigator !== 'undefined' ? (navigator as any).maxTouchPoints || 0 : 0;
+
+        const isIOSDevice = /iPad|iPhone|iPod/.test(ua) ||
+          (platform === 'MacIntel' && maxTouchPoints > 1);
+
+        setIsIOS(Boolean(isIOSDevice));
+      } catch (err) {
+        setIsIOS(false);
+      }
     };
 
-    // Listen for beforeinstallprompt event
+    // Read dismissal flag from sessionStorage (client-only)
+    const readDismissed = () => {
+      try {
+        if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+          setDismissed(sessionStorage.getItem('pwa-install-dismissed') === 'true');
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    // Event handlers
     const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
+      try {
+        e.preventDefault();
+      } catch (err) {
+        // Some polyfills may throw; ignore
+      }
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstallCard(true);
     };
 
-    // Listen for appinstalled event
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setShowInstallCard(false);
@@ -64,13 +96,20 @@ export function PWAInstallPrompt() {
 
     checkInstalled();
     checkIOS();
+    readDismissed();
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+    // Add listeners (client-only guard)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.addEventListener('appinstalled', handleAppInstalled);
+    }
 
+    // cleanup
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+      }
     };
   }, []);
 
@@ -80,12 +119,12 @@ export function PWAInstallPrompt() {
     try {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      
+
       if (outcome === 'accepted') {
         setIsInstalled(true);
         setShowInstallCard(false);
       }
-      
+
       setDeferredPrompt(null);
     } catch (error) {
       console.error('PWA installation failed:', error);
@@ -94,13 +133,21 @@ export function PWAInstallPrompt() {
 
   const handleDismiss = () => {
     setShowInstallCard(false);
-    // Don't show again for this session
-    sessionStorage.setItem('pwa-install-dismissed', 'true');
+    setDismissed(true);
+    try {
+      if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('pwa-install-dismissed', 'true');
+      }
+    } catch (err) {
+      // ignore storage failures (e.g., private mode)
+    }
   };
 
+  // While not mounted on client, don't render anything (avoid SSR reading browser APIs)
+  if (!mounted) return null;
+
   // Don't show if already installed, standalone mode, or dismissed
-  if (isInstalled || isStandalone || 
-      (showInstallCard === false && sessionStorage.getItem('pwa-install-dismissed'))) {
+  if (isInstalled || isStandalone || dismissed) {
     return null;
   }
 
@@ -193,10 +240,15 @@ export function PWAInstallPrompt() {
 export function PWAInstallButton({ className }: { className?: string }) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+
     const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
+      try {
+        e.preventDefault();
+      } catch (_) {}
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
@@ -206,18 +258,29 @@ export function PWAInstallButton({ className }: { className?: string }) {
     };
 
     const checkInstalled = () => {
-      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches ||
-                              (window.navigator as any).standalone;
-      setIsInstalled(isStandaloneMode);
+      try {
+        const isStandaloneMode =
+          (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          (typeof navigator !== 'undefined' && (navigator as any).standalone);
+
+        setIsInstalled(Boolean(isStandaloneMode));
+      } catch (err) {
+        // ignore
+      }
     };
 
     checkInstalled();
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.addEventListener('appinstalled', handleAppInstalled);
+    }
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.removeEventListener('appinstalled', handleAppInstalled);
+      }
     };
   }, []);
 
@@ -227,16 +290,19 @@ export function PWAInstallButton({ className }: { className?: string }) {
     try {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      
+
       if (outcome === 'accepted') {
         setIsInstalled(true);
       }
-      
+
       setDeferredPrompt(null);
     } catch (error) {
       console.error('PWA installation failed:', error);
     }
   };
+
+  // Don't render anything until mounted (avoids SSR issues)
+  if (!mounted) return null;
 
   if (isInstalled || !deferredPrompt) {
     return null;
@@ -258,25 +324,60 @@ export function PWAInstallButton({ className }: { className?: string }) {
 export function PWAStatusIndicator() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+
     const checkPWAStatus = () => {
-      const isStandaloneMode = window.matchMedia('(display-mode: standalone)').matches ||
-                              (window.navigator as any).standalone ||
-                              document.referrer.includes('android-app://');
-      setIsStandalone(isStandaloneMode);
-      setIsInstalled(isStandaloneMode);
+      try {
+        const isStandaloneMode =
+          (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          (typeof navigator !== 'undefined' && (navigator as any).standalone) ||
+          (typeof document !== 'undefined' && typeof document.referrer === 'string' && document.referrer.includes('android-app://'));
+
+        setIsStandalone(Boolean(isStandaloneMode));
+        setIsInstalled(Boolean(isStandaloneMode));
+      } catch (err) {
+        // ignore
+      }
     };
 
     checkPWAStatus();
 
-    const mediaQuery = window.matchMedia('(display-mode: standalone)');
-    mediaQuery.addEventListener('change', checkPWAStatus);
+    // Setup media query listener if available
+    let mediaQuery: MediaQueryList | null = null;
+    try {
+      if (typeof window !== 'undefined' && window.matchMedia) {
+        mediaQuery = window.matchMedia('(display-mode: standalone)');
+        const listener = () => checkPWAStatus();
+        // prefer addEventListener if present
+        if (mediaQuery.addEventListener) {
+          mediaQuery.addEventListener('change', listener);
+        } else if ((mediaQuery as any).addListener) {
+          (mediaQuery as any).addListener(listener);
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
 
     return () => {
-      mediaQuery.removeEventListener('change', checkPWAStatus);
+      try {
+        if (mediaQuery) {
+          if (mediaQuery.removeEventListener) {
+            mediaQuery.removeEventListener('change', checkPWAStatus);
+          } else if ((mediaQuery as any).removeListener) {
+            (mediaQuery as any).removeListener(checkPWAStatus);
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
     };
   }, []);
+
+  if (!mounted) return null;
 
   if (!isInstalled) {
     return null;
