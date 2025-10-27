@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -15,10 +15,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// ✅ Metadata (for SEO, social, etc.)
 export const metadata: Metadata = {
   title: "RETINA - AI-Powered Retinal Disease Detection",
-  description: "Advanced AI-powered retinal disease detection system with CNN technology. Analyze retinal images for glaucoma, diabetic retinopathy, and cataracts using deep learning.",
-  keywords: ["RETINA", "retinal disease", "glaucoma detection", "diabetic retinopathy", "cataract detection", "CNN", "deep learning", "medical AI", "ophthalmology", "eye health"],
+  description:
+    "Advanced AI-powered retinal disease detection system with CNN technology. Analyze retinal images for glaucoma, diabetic retinopathy, and cataracts using deep learning.",
+  keywords: [
+    "RETINA",
+    "retinal disease",
+    "glaucoma detection",
+    "diabetic retinopathy",
+    "cataract detection",
+    "CNN",
+    "deep learning",
+    "medical AI",
+    "ophthalmology",
+    "eye health",
+  ],
   authors: [{ name: "RETINA AI Team" }],
   icons: {
     icon: "/icons/icon-192x192.png",
@@ -35,7 +48,8 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "RETINA - AI-Powered Retinal Disease Detection",
-    description: "Advanced AI-powered retinal disease detection system with CNN technology",
+    description:
+      "Advanced AI-powered retinal disease detection system with CNN technology",
     url: "/",
     siteName: "RETINA",
     type: "website",
@@ -51,15 +65,18 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "RETINA - AI-Powered Retinal Disease Detection",
-    description: "Advanced AI-powered retinal disease detection system with CNN technology",
+    description:
+      "Advanced AI-powered retinal disease detection system with CNN technology",
     images: ["/icons/icon-512x512.png"],
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
+};
+
+// ✅ Move these out — required in Next.js 15+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#09090b" },
@@ -76,14 +93,31 @@ export default function RootLayout({
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="default"
+        />
         <meta name="apple-mobile-web-app-title" content="RETINA" />
         <meta name="application-name" content="RETINA" />
         <meta name="msapplication-TileColor" content="#10b981" />
         <meta name="msapplication-config" content="/browserconfig.xml" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
+        <link
+          rel="apple-touch-icon"
+          sizes="180x180"
+          href="/icons/icon-192x192.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="32x32"
+          href="/icons/icon-32x32.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="16x16"
+          href="/icons/icon-16x16.png"
+        />
         <link rel="mask-icon" href="/icons/icon-512x512.png" color="#10b981" />
       </head>
       <body
